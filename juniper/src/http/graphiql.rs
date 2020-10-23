@@ -50,12 +50,22 @@ pub fn graphiql_source(
             return null
         }
 
+        // https://gist.github.com/skratchdot/e095036fad80597f1c1a
+        function str2ab(str) {
+            var buf = new ArrayBuffer(str.length); // 2 bytes for each char
+            var bufView = new Uint8Array(buf);
+            for (var i = 0, strLen = str.length; i < strLen; i++) {
+              bufView[i] = str.charCodeAt(i);
+            }
+            return buf;
+        }
+
         function serde(){
             let params = new URL(window.location.href).searchParams;
             let format = params.get('format')
             console.log('format: ' + format)
             if(format == "cbor"){
-                return ['cbor', CBOR.encode, CBOR.decode]
+                return ['cbor', CBOR.encode, (str) => CBOR.decode(str2ab(str))]
             }
             return ['json', JSON.stringify, JSON.parse]
         }
@@ -66,10 +76,10 @@ pub fn graphiql_source(
                 method: 'post',
                 headers: {
                     'Accept': 'application/' + format,
-                    'Content-Type': 'application/' +  format,
+                    'Content-Type': 'application/json',
                 },
                 credentials: 'include',
-                body: ser(params)
+                body: JSON.stringify(params)
             }).then(function (response) {
                 return response.text();
             }).then(function (body) {
