@@ -50,7 +50,7 @@ use rocket::{
 };
 
 use juniper::{
-    http::{self, GraphQLBatchRequest},
+    http::{self, GraphQLBatchRequest, GraphQLBatchResponse},
     DefaultScalarValue, FieldError, GraphQLSubscriptionType, GraphQLType, GraphQLTypeAsync,
     InputValue, RootNode, ScalarValue,
 };
@@ -67,6 +67,8 @@ where
 
 /// Simple wrapper around the result of executing a GraphQL query
 pub struct GraphQLResponse(pub Status, pub String);
+
+type OptionlSerializer<S = DefaultScalarValue> = Option<fn(&GraphQLBatchResponse<S>) -> String>;
 
 /// Generate an HTML page containing GraphiQL
 pub fn graphiql_source(graphql_endpoint_url: &str) -> content::Html<String> {
@@ -93,6 +95,7 @@ where
         &self,
         root_node: &RootNode<QueryT, MutationT, SubscriptionT, S>,
         context: &CtxT,
+        serializer: &OptionlSerializer<S>,
     ) -> GraphQLResponse
     where
         QueryT: GraphQLType<S, Context = CtxT>,
@@ -105,7 +108,10 @@ where
         } else {
             Status::BadRequest
         };
-        let json = serde_json::to_string(&response).unwrap();
+        let json = match serializer {
+            Some(ser) => ser(&response),
+            None => serde_json::to_string(&response).unwrap(),
+        };
 
         GraphQLResponse(status, json)
     }
@@ -115,6 +121,7 @@ where
         &self,
         root_node: &RootNode<'_, QueryT, MutationT, SubscriptionT, S>,
         context: &CtxT,
+        serializer: &OptionlSerializer<S>,
     ) -> GraphQLResponse
     where
         QueryT: GraphQLTypeAsync<S, Context = CtxT>,
@@ -132,7 +139,10 @@ where
         } else {
             Status::BadRequest
         };
-        let json = serde_json::to_string(&response).unwrap();
+        let json = match serializer {
+            Some(ser) => ser(&response),
+            None => serde_json::to_string(&response).unwrap(),
+        };
 
         GraphQLResponse(status, json)
     }
@@ -173,7 +183,7 @@ impl GraphQLResponse {
     ///         return juniper_rocket_async::GraphQLResponse::error(err);
     ///     }
     ///
-    ///     request.execute_sync(&schema, &context)
+    ///     request.execute_sync(&schema, &context, &None)
     /// }
     /// ```
     pub fn error(error: FieldError) -> Self {
@@ -471,7 +481,7 @@ mod tests {
         request: Form<super::GraphQLRequest>,
         schema: State<Schema>,
     ) -> super::GraphQLResponse {
-        request.execute_sync(&schema, &context)
+        request.execute_sync(&schema, &context, &None)
     }
 
     #[post("/", data = "<request>")]
@@ -480,7 +490,7 @@ mod tests {
         request: super::GraphQLRequest,
         schema: State<Schema>,
     ) -> super::GraphQLResponse {
-        request.execute_sync(&schema, &context)
+        request.execute_sync(&schema, &context, &None)
     }
 
     struct TestRocketIntegration {
@@ -529,7 +539,7 @@ mod tests {
             schema: State<Schema>,
         ) -> super::GraphQLResponse {
             assert_eq!(request.operation_names(), vec![Some("TestQuery")]);
-            request.execute_sync(&schema, &context)
+            request.execute_sync(&schema, &context, &None)
         }
 
         let rocket = make_rocket_without_routes()

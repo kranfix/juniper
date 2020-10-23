@@ -17,7 +17,7 @@ fn get_graphql_handler(
     request: juniper_rocket_async::GraphQLRequest,
     schema: State<Schema>,
 ) -> juniper_rocket_async::GraphQLResponse {
-    request.execute_sync(&schema, &context)
+    request.execute_sync(&schema, &context, &None)
 }
 
 #[rocket::post("/graphql", data = "<request>")]
@@ -26,7 +26,14 @@ fn post_graphql_handler(
     request: juniper_rocket_async::GraphQLRequest,
     schema: State<Schema>,
 ) -> juniper_rocket_async::GraphQLResponse {
-    request.execute_sync(&schema, &context)
+    request.execute_sync(
+        &schema,
+        &context,
+        &Some(|res| {
+            let bytes = serde_cbor::to_vec(&res).unwrap();
+            bytes.iter().map(|&c| c as char).collect::<String>()
+        }),
+    )
 }
 
 #[rocket::main]
