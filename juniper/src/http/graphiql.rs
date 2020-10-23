@@ -50,20 +50,31 @@ pub fn graphiql_source(
             return null
         }
 
+        function serde(){
+            let params = new URL(window.location.href).searchParams;
+            let format = params.get('format')
+            console.log('format: ' + format)
+            if(format == "cbor"){
+                return ['cbor', CBOR.encode, CBOR.decode]
+            }
+            return ['json', JSON.stringify, JSON.parse]
+        }
+
         function graphQLFetcher(params) {
+            var [format, ser, de] = serde()
             return fetch(GRAPHQL_URL, {
                 method: 'post',
                 headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
+                    'Accept': 'application/' + format,
+                    'Content-Type': 'application/' +  format,
                 },
                 credentials: 'include',
-                body: JSON.stringify(params)
+                body: ser(params)
             }).then(function (response) {
                 return response.text();
             }).then(function (body) {
                 try {
-                    return JSON.parse(body);
+                    return de(body);
                 } catch (error) {
                     return body;
                 }
@@ -91,6 +102,7 @@ pub fn graphiql_source(
 </head>
 <body>
     <div id="app"></div>
+    <script src="https://unpkg.com/cbor-js@0.1.0/cbor.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.js"></script>
     <script src="//unpkg.com/subscriptions-transport-ws@0.8.3/browser/client.js"></script>
     <script src="//unpkg.com/graphiql-subscriptions-fetcher@0.0.2/browser/client.js"></script>
